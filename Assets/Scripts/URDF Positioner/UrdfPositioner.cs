@@ -21,6 +21,10 @@ namespace UrdfPositioning {
         // Start is called before the first frame update
         void Start()
         {
+            ArticulationBodiesEnabled bodiesEnabled;
+            if (urdfModel.TryGetComponent(out bodiesEnabled)) {
+                bodiesEnabled.SetEnabled(false);
+            }
             rayPositioner.Initialise(urdfModel, StartGizmoState);
         }
 
@@ -44,6 +48,11 @@ namespace UrdfPositioning {
             urdfModel.SetActive(true);
             urdfModel.transform.position = data.position;
             urdfModel.transform.rotation = data.rotation;
+
+            ArticulationBodiesEnabled bodiesEnabled;
+            if (urdfModel.TryGetComponent(out bodiesEnabled)) {
+                bodiesEnabled.SetEnabled(true);
+            }
         }
     }
 }
