@@ -58,8 +58,8 @@ namespace UrdfPositioning {
                 visibleRay.SetPosition(0, controllerPos);
                 visibleRay.SetPosition(1, endPoint);
 
-                // Finalise position on "A" button press
-                if (OVRInput.GetDown(OVRInput.RawButton.A)) {
+                // Finalise position on "B" button press
+                if (OVRInput.GetDown(OVRInput.RawButton.B)) {
                     TransformData data = new TransformData(urdfModel.transform);
                     finaliseTransform(data);
                     visibleRay.enabled = false;

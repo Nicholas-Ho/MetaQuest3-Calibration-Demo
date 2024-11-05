@@ -15,6 +15,7 @@ namespace UrdfPositioning {
     {
         public GameObject urdfModel;
         public UrdfRayPositioner rayPositioner = new UrdfRayPositioner();
+        public UrdfGizmoPositioner gizmoPositioner = new UrdfGizmoPositioner();
         private PositionState state = PositionState.Ray;
 
         // Start is called before the first frame update
@@ -28,11 +29,14 @@ namespace UrdfPositioning {
         {
             if (state == PositionState.Ray) {
                 rayPositioner.Update();
+            } else if (state == PositionState.Gizmo) {
+                gizmoPositioner.Update();
             }
         }
 
         public void StartGizmoState(TransformData data) {
-            StartFixedState(data);
+            state = PositionState.Gizmo;
+            gizmoPositioner.Initialise(urdfModel, data, StartFixedState);
         }
 
         public void StartFixedState(TransformData data) {
