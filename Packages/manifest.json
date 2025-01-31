@@ -1,5 +1,13 @@
 {
+  "scopedRegistries": [
+    {
+      "name": "Keijiro",
+      "url": "https://registry.npmjs.com",
+      "scopes": [ "jp.keijiro" ]
+    }
+  ],
   "dependencies": {
+    "jp.keijiro.pcx": "1.0.1",
     "com.meta.xr.sdk.all": "69.0.1",
     "com.unity.collab-proxy": "2.5.2",
     "com.unity.device-simulator.devices": "1.0.0",
