@@ -3,9 +3,15 @@
   
     "configurePresets": [
         {
-            "name": "build",
+            "name": "vcpkg_build_windows",
             "cacheVariables": {
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+            }
+        },
+        {
+            "name": "vcpkg_build_android_arm64",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "./android_arm64_toolchain.cmake"
             }
         }
     ]

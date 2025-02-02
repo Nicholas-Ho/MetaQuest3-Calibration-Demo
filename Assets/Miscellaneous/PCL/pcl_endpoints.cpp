@@ -4,7 +4,7 @@
 #include <pcl/registration/icp.h>
 #include <Eigen/Core>
 
-DllExport Matrix4fFlattened GetICPTransform(Vector3cpp points[], Vector3cpp target[], int pointsSize, int targetSize) {
+JNIEXPORT Matrix4fFlattened GetICPTransform(Vector3cpp points[], Vector3cpp target[], int pointsSize, int targetSize) {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in (new pcl::PointCloud<pcl::PointXYZ>(pointsSize,1));
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_target (new pcl::PointCloud<pcl::PointXYZ>(targetSize,1));
     for (auto& point : *cloud_in) {

@@ -24,7 +24,7 @@ public class IterativeClosestPoint
         public float[] data;
     }
 
-    [DllImport("pcl_endpoints.dll")]
+    [DllImport("libpcl_endpoints.so")]
     private static extern Matrix4fFlattened GetICPTransform(Vector3Cpp[] points, Vector3Cpp[] target, int pointsSize, int targetSize);
 
     private Matrix4x4 UnflattenMatrix(Matrix4fFlattened matF) {

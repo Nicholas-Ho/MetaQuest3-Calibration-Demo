@@ -1,6 +1,6 @@
 #ifndef PCL_ENDPOINTS_H
 #define PCL_ENDPOINTS_H
-#define DllExport __declspec(dllexport)
+#define JNIEXPORT __attribute__((visibility("default")))
 
 #include <Eigen/Core>
 
@@ -22,6 +22,6 @@ Matrix4fFlattened FlattenMatrix(Eigen::Matrix4f mat) {
     return flattened;
 }
 
-extern "C" DllExport Matrix4fFlattened GetICPTransform(Vector3cpp points[], Vector3cpp target[], int pointsSize, int targetSize);
+extern "C" JNIEXPORT Matrix4fFlattened GetICPTransform(Vector3cpp points[], Vector3cpp target[], int pointsSize, int targetSize);
 
 #endif
