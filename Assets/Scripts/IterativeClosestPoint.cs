@@ -102,11 +102,11 @@ public class IterativeClosestPoint
         // Normalise quaternion
         float rotQuatMag = 0;
         foreach(float el in rotQuatVals) rotQuatMag += el;
-        Quaternion rotation = new Quaternion(
-            rotQuatVals[0] / rotQuatMag,
+        Quaternion rotation = new Quaternion(  // Note Unity's Quaternion notation order
             rotQuatVals[1] / rotQuatMag,
             rotQuatVals[2] / rotQuatMag,
-            rotQuatVals[3] / rotQuatMag
+            rotQuatVals[3] / rotQuatMag,
+            rotQuatVals[0] / rotQuatMag
         );
         Debug.Log(rotation.ToString());
         
