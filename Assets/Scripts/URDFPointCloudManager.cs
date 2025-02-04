@@ -1,8 +1,7 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 public class URDFPointCloudManager : MonoBehaviour
 {
@@ -14,14 +13,17 @@ public class URDFPointCloudManager : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        RetrievePoints();
-        FitModel();
+        
     }
 
     // Update is called once per frame
     void Update()
     {
-        
+        RetrievePoints();
+        Profiler.BeginSample("ICP");
+        FitModel();
+        Profiler.EndSample();
+        UnityEditor.EditorApplication.isPlaying = false;
     }
 
     void RetrievePoints()
@@ -40,13 +42,18 @@ public class URDFPointCloudManager : MonoBehaviour
         // JarvisMarch jarvisMarch = new JarvisMarch();
         // List<int> triangles;
         // List<int> hull = jarvisMarch.ConvexHull3D(points, out triangles);
-        for (int i=0; i<points.Count; i+=10) {
+        for (int i=0; i<points.Count; i+=50) {
             GameObject point = Instantiate(pointModel, transform);
             point.transform.position = points[i];
         }
     }
 
     void FitModel() {
+        // Decimate for debugging
+        List<Vector3> _points = new List<Vector3>();
+        for (int i=0; i<points.Count; i+=200) _points.Add(points[i]);
+        points = _points;
+
         List<Vector3> moved = new List<Vector3>(points);
         for (int i=0; i<moved.Count; i++) {
             moved[i] = new Vector3(moved[i].x + 51f, moved[i].y + 0.05f, moved[i].z);
