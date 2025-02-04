@@ -1,61 +1,157 @@
+// As detailed in https://www.sci.utah.edu/~shireen/pdfs/tutorials/Elhabian_ICP09.pdf
+
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
 using UnityEngine;
+using DataStructures.ViliWonka.KDTree;
+using SimpleQRAlgorithm;
+using System;
+using System.Linq;
 
 public class IterativeClosestPoint
 {
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Vector3Cpp {
-        public float x, y, z;
+    enum Axes { x, y, z }
+    private struct TRS {
+        public Vector3 t;
+        public Quaternion r;
+        public Vector3 s;
+        public TRS(Vector3 tr, Quaternion ro, float sc) {
+            t = tr;
+            r = ro;
+            s = new Vector3(sc, sc, sc);
+        }
+        public void Blend(float blend) {
+            t *= blend;
+            r = Quaternion.Lerp(Quaternion.identity, r, blend);
+            s = s * blend + Vector3.one * (1 - blend);
+        }
     }
 
-    private Vector3Cpp Vector3ToCpp(Vector3 vec) {
-        Vector3Cpp vecCpp = new Vector3Cpp();
-        vecCpp.x = vec.x;
-        vecCpp.y = vec.y;
-        vecCpp.z = vec.z;
-        return vecCpp;
-    }
+    public Matrix4x4 ICP(List<Vector3> points, List<Vector3> target, int maxIterations=5, float threshold=1e-3f, float blend=0.75f) {
+        KDTree kdTree = new KDTree(target.ToArray(), 4);
+        KDQuery query = new KDQuery();
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Matrix4fFlattened {  // Flattened from Eigen3 Matrix4f
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-        public float[] data;
-    }
+        int Np = points.Count;
+        int Nt = target.Count;
+        Matrix4x4 transformMatrix = Matrix4x4.identity;
 
-    [DllImport("libpcl_endpoints.so")]
-    private static extern Matrix4fFlattened GetICPTransform(Vector3Cpp[] points, Vector3Cpp[] target, int pointsSize, int targetSize);
-
-    private Matrix4x4 UnflattenMatrix(Matrix4fFlattened matF) {
-        Matrix4x4 mat = new Matrix4x4();
-        for (int i=0; i<4; i++) {
-            for (int j=0; j<4; j++) {
-                mat[i,j] = matF.data[i*4+j];
+        List<Vector3> _points = new List<Vector3>(points);  // Allow modifications without changing original
+        List<int> correspondence = new List<int>(points.Count);
+        List<int> results;  // Container
+        for (int i=0; i<maxIterations; i++) {
+            // Retrieve closest points
+            for (int j=0; j<Np; j++) {
+                results = new List<int>();
+                query.KNearest(kdTree, _points[j], 1, results);
+                correspondence.Add(results[0]);
             }
+
+            // Find alignment
+            TRS trs = FindAlignment(_points, target);
+            // trs.Blend(blend);  // Reduce impact of transformation
+            Matrix4x4 mat = new Matrix4x4();
+            mat.SetTRS(trs.t, trs.r, trs.s);
+
+            // Add to output
+            transformMatrix = mat * transformMatrix;
+
+            // Compute residual error. If within threshold, break
+            float error = 0;
+            for (int j=0; j<Np; j++) {
+                _points[j] = mat.MultiplyPoint3x4(_points[j]);
+                error += (target[correspondence[j]] - _points[j]).sqrMagnitude;;
+            }
+            if (error / Np < threshold) break;
         }
-        return mat;
+        return transformMatrix;
     }
 
-    public Matrix4x4 ICP(List<Vector3> points, List<Vector3> target) {
-        return ICP(points.ToArray(), target.ToArray());
+    private TRS FindAlignment(List<Vector3> points, List<Vector3> target) {
+        List<Vector3> Pprime = CentreAboutZero(points, out Vector3 Pmu);
+        List<Vector3> Tprime = CentreAboutZero(target, out Vector3 Tmu);
+        float Sxx = ComputeS(Pprime, Axes.x, Tprime, Axes.x);
+        float Sxy = ComputeS(Pprime, Axes.x, Tprime, Axes.y);
+        float Sxz = ComputeS(Pprime, Axes.x, Tprime, Axes.z);
+        float Syx = ComputeS(Pprime, Axes.y, Tprime, Axes.x);
+        float Syy = ComputeS(Pprime, Axes.y, Tprime, Axes.y);
+        float Syz = ComputeS(Pprime, Axes.y, Tprime, Axes.z);
+        float Szx = ComputeS(Pprime, Axes.z, Tprime, Axes.x);
+        float Szy = ComputeS(Pprime, Axes.z, Tprime, Axes.y);
+        float Szz = ComputeS(Pprime, Axes.z, Tprime, Axes.z);
+        
+        float[,] Nmatrix = {
+            { Sxx + Syy + Szz,  Syz - Szy,          -Sxz + Szx,         Sxy - Syx       },
+            { -Szy + Syz,       Sxx - Szz - Syy,    Sxy + Syx,          Sxz + Szx       },
+            { Szx - Sxz,        Syx + Sxy,          Syy - Szz - Sxx,    Syz + Szy       },
+            { -Syx + Sxy,       Szx + Sxz,          Szy + Syz,          Szz - Syy - Sxx }
+        };
+
+        // Compute rotation quaternion as dominant eigenvector of Nmatrix
+        QRAlgorithm.Diagonalize(Nmatrix, 10, out float[,] eigenvalues, out float[,] eigenvectors);
+        int domInd = -1;
+        for (int i=0; i<4; i++) {
+            if (eigenvalues[i,i] < 0) continue;
+            if (domInd == -1 ||
+                eigenvalues[i,i] > eigenvalues[domInd, domInd]) domInd = i;
+        }
+        if (domInd == -1) throw new Exception("No positive eigenvalues in Nmatrix");
+        float[] rotQuatVals = {eigenvectors[0, domInd],
+                           eigenvectors[1, domInd],
+                           eigenvectors[2, domInd],
+                           eigenvectors[3, domInd]};
+        
+        // Normalise quaternion
+        float rotQuatMag = 0;
+        foreach(float el in rotQuatVals) rotQuatMag += el;
+        Quaternion rotation = new Quaternion(
+            rotQuatVals[0] / rotQuatMag,
+            rotQuatVals[1] / rotQuatMag,
+            rotQuatVals[2] / rotQuatMag,
+            rotQuatVals[3] / rotQuatMag
+        );
+        Debug.Log(rotation.ToString());
+        
+        // Compute scaling factor
+        float PsumSqMg = 0, TsumSqMg = 0;
+        for (int i=0; i<Pprime.Count; i++) PsumSqMg += Pprime[i].sqrMagnitude;
+        for (int i=0; i<Tprime.Count; i++) TsumSqMg += Tprime[i].sqrMagnitude;
+        float scale = (float) Math.Sqrt(TsumSqMg / PsumSqMg);
+
+        // Compute translation
+        Vector3 translation = Tmu - scale * (rotation * Pmu);
+
+        return new TRS(translation, rotation, scale);
     }
 
-    public Matrix4x4 ICP(Vector3[] points, Vector3[] target) {
-        int pointsSize = points.Count();
-        int targetSize = target.Count();
-        Vector3Cpp[] pointsCpp = new Vector3Cpp[pointsSize];
-        Vector3Cpp[] targetCpp = new Vector3Cpp[targetSize];
-        for (int i=0; i<pointsSize; i++) {
-            pointsCpp[i] = Vector3ToCpp(points[i]);
+    // Helper functions
+    private Vector3 FindCentroid(List<Vector3> vecs) {
+        Vector3 output = Vector3.zero;
+        foreach (Vector3 vec in vecs) {
+            output += vec;
         }
-        for (int i=0; i<targetSize; i++) {
-            targetCpp[i] = Vector3ToCpp(target[i]);
+        return output / vecs.Count;
+    }
+
+    private List<Vector3> CentreAboutZero(List<Vector3> vecs, out Vector3 centre) {
+        List<Vector3> output = new List<Vector3>();
+        centre = FindCentroid(vecs);
+        for (int i=0; i<vecs.Count; i++) {
+            output.Add(vecs[i] - centre);
         }
-        Debug.Log(points[0]);
-        Debug.Log(target[0]);
-        Matrix4fFlattened flattened = GetICPTransform(pointsCpp, targetCpp, pointsSize, targetSize);
-        Debug.Log(flattened.data);
-        return UnflattenMatrix(flattened);
+        return output;
+    }
+
+    private float ComputeS(List<Vector3> a, Axes aDim, List<Vector3> b, Axes bDim) {
+        float output = 0;
+        if (a.Count != b.Count) throw new Exception("Both lists must be of equal length");
+        for (int i=0; i<a.Count; i++) {
+            output += GetVecValue(a[i], aDim) * GetVecValue(b[i], bDim);
+        }
+        return output;
+    }
+
+    private float GetVecValue(Vector3 vec, Axes dim) {
+        if (dim == Axes.x) return vec.x;
+        if (dim == Axes.y) return vec.y;
+        return vec.z;
     }
 }

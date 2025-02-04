@@ -49,7 +49,7 @@ public class URDFPointCloudManager : MonoBehaviour
     void FitModel() {
         List<Vector3> moved = new List<Vector3>(points);
         for (int i=0; i<moved.Count; i++) {
-            moved[i] = new Vector3(moved[i].x + 1, moved[i].y + 5, moved[i].z);
+            moved[i] = new Vector3(moved[i].x + 51f, moved[i].y + 0.05f, moved[i].z);
         }
         GameObject parent = new GameObject();
         for (int i=0; i<points.Count; i+=10) {
@@ -57,7 +57,7 @@ public class URDFPointCloudManager : MonoBehaviour
             point.transform.position = moved[i];
         }
         IterativeClosestPoint icp = new IterativeClosestPoint();
-        Matrix4x4 transformation = icp.ICP(moved, points);
+        Matrix4x4 transformation = icp.ICP(moved, points, 5, 1e-3f, 1.0f);
         Debug.Log(transformation);
         MatrixHelpers.SetTransformFromMatrix(parent.transform, ref transformation);
     }
