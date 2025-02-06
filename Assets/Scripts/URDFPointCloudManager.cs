@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -13,17 +14,14 @@ public class URDFPointCloudManager : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+        RetrievePoints();
+        FitModel();
     }
 
     // Update is called once per frame
     void Update()
     {
-        RetrievePoints();
-        Profiler.BeginSample("ICP");
-        FitModel();
-        Profiler.EndSample();
-        UnityEditor.EditorApplication.isPlaying = false;
+        
     }
 
     void RetrievePoints()
@@ -42,30 +40,31 @@ public class URDFPointCloudManager : MonoBehaviour
         // JarvisMarch jarvisMarch = new JarvisMarch();
         // List<int> triangles;
         // List<int> hull = jarvisMarch.ConvexHull3D(points, out triangles);
-        for (int i=0; i<points.Count; i+=50) {
+        for (int i=0; i<points.Count; i+=10) {
             GameObject point = Instantiate(pointModel, transform);
             point.transform.position = points[i];
         }
     }
 
     void FitModel() {
-        // Decimate for debugging
+        // Decimate for development
         List<Vector3> _points = new List<Vector3>();
-        for (int i=0; i<points.Count; i+=200) _points.Add(points[i]);
+        for (int i=0; i<points.Count; i+=10) _points.Add(points[i]);
         points = _points;
 
         List<Vector3> moved = new List<Vector3>(points);
         for (int i=0; i<moved.Count; i++) {
-            moved[i] = new Vector3(moved[i].x + 51f, moved[i].y + 0.05f, moved[i].z);
+            Quaternion rot = new Quaternion();
+            rot.eulerAngles = new Vector3(20, 80, 0);
+            moved[i] = rot * new Vector3(moved[i].x + 0.1f, moved[i].y + 1f, moved[i].z + 3f);
         }
         GameObject parent = new GameObject();
-        for (int i=0; i<points.Count; i+=10) {
+        for (int i=0; i<points.Count; i++) {
             GameObject point = Instantiate(fitModel, parent.transform);
             point.transform.position = moved[i];
         }
         IterativeClosestPoint icp = new IterativeClosestPoint();
-        Matrix4x4 transformation = icp.ICP(moved, points, 5, 1e-3f, 1.0f);
-        Debug.Log(transformation);
+        Matrix4x4 transformation = icp.ICP(moved, points, 50, 1e-5f, 1.0f, true);
         MatrixHelpers.SetTransformFromMatrix(parent.transform, ref transformation);
     }
 }

@@ -2,10 +2,8 @@
 
 using System.Collections.Generic;
 using UnityEngine;
-using DataStructures.ViliWonka.KDTree;
 using SimpleQRAlgorithm;
 using System;
-using System.Linq;
 
 public class IterativeClosestPoint
 {
@@ -26,28 +24,27 @@ public class IterativeClosestPoint
         }
     }
 
-    public Matrix4x4 ICP(List<Vector3> points, List<Vector3> target, int maxIterations=5, float threshold=1e-3f, float blend=0.75f) {
-        KDTree kdTree = new KDTree(target.ToArray(), 4);
-        KDQuery query = new KDQuery();
+    public Matrix4x4 ICP(List<Vector3> points,
+                         List<Vector3> target,
+                         int maxIterations=200,
+                         float threshold=1e-3f,
+                         float blend=0.75f,
+                         bool useScale=false) {
+
+        KDTree3D kdTree = new KDTree3D(target);
 
         int Np = points.Count;
-        int Nt = target.Count;
         Matrix4x4 transformMatrix = Matrix4x4.identity;
 
         List<Vector3> _points = new List<Vector3>(points);  // Allow modifications without changing original
-        List<int> correspondence = new List<int>(points.Count);
-        List<int> results;  // Container
+        List<Vector3> correspondence;
         for (int i=0; i<maxIterations; i++) {
             // Retrieve closest points
-            for (int j=0; j<Np; j++) {
-                results = new List<int>();
-                query.KNearest(kdTree, _points[j], 1, results);
-                correspondence.Add(results[0]);
-            }
+            correspondence = kdTree.GetNearestNeighbours(_points);
 
             // Find alignment
             TRS trs = FindAlignment(_points, target);
-            // trs.Blend(blend);  // Reduce impact of transformation
+            if (!useScale) trs.s = new Vector3(1, 1, 1);  // Don't use scale if not useScale
             Matrix4x4 mat = new Matrix4x4();
             mat.SetTRS(trs.t, trs.r, trs.s);
 
@@ -58,7 +55,7 @@ public class IterativeClosestPoint
             float error = 0;
             for (int j=0; j<Np; j++) {
                 _points[j] = mat.MultiplyPoint3x4(_points[j]);
-                error += (target[correspondence[j]] - _points[j]).sqrMagnitude;;
+                error += (correspondence[j] - _points[j]).sqrMagnitude;;
             }
             if (error / Np < threshold) break;
         }
@@ -94,21 +91,16 @@ public class IterativeClosestPoint
                 eigenvalues[i,i] > eigenvalues[domInd, domInd]) domInd = i;
         }
         if (domInd == -1) throw new Exception("No positive eigenvalues in Nmatrix");
-        float[] rotQuatVals = {eigenvectors[0, domInd],
-                           eigenvectors[1, domInd],
-                           eigenvectors[2, domInd],
-                           eigenvectors[3, domInd]};
-        
-        // Normalise quaternion
-        float rotQuatMag = 0;
-        foreach(float el in rotQuatVals) rotQuatMag += el;
-        Quaternion rotation = new Quaternion(  // Note Unity's Quaternion notation order
-            rotQuatVals[1] / rotQuatMag,
-            rotQuatVals[2] / rotQuatMag,
-            rotQuatVals[3] / rotQuatMag,
-            rotQuatVals[0] / rotQuatMag
+
+        // Note the different order, as deduced from the layout of the rotation matrix.
+        // The order is hence (w, x, y, z).
+        // This is in a different order from Unity's (x, y, z, w).
+        Quaternion rotation = new Quaternion(
+            eigenvectors[1, domInd],
+            eigenvectors[2, domInd],
+            eigenvectors[3, domInd],
+            eigenvectors[0, domInd]
         );
-        Debug.Log(rotation.ToString());
         
         // Compute scaling factor
         float PsumSqMg = 0, TsumSqMg = 0;
