@@ -14150,7 +14150,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 75b71088d036bd24caec541bb0cd54ee, type: 2}
+  - {fileID: 2100000, guid: c26096c00f6885f40af30f5a6bba6977, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -14197,6 +14197,7 @@ MonoBehaviour:
     type: 3}
   fitModel: {fileID: 6760052456395870513, guid: 42e5de243a10971499b8152d6d62c6c2,
     type: 3}
+  hullMaterial: {fileID: 2100000, guid: c26096c00f6885f40af30f5a6bba6977, type: 2}
 --- !u!4 &1280566555
 Transform:
   m_ObjectHideFlags: 0
