@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Profiling;
+using GK;
 
 public class URDFPointCloudManager : MonoBehaviour
 {
@@ -10,12 +9,15 @@ public class URDFPointCloudManager : MonoBehaviour
     private List<Vector3> points;
     public GameObject pointModel;
     public GameObject fitModel;
+    public Material hullMaterial;
+    private Mesh hullMesh;
 
     // Start is called before the first frame update
     void Start()
     {
         RetrievePoints();
-        FitModel();
+        GenerateConvexHull();
+        Demo();
     }
 
     // Update is called once per frame
@@ -37,34 +39,58 @@ public class URDFPointCloudManager : MonoBehaviour
             }
             points.AddRange(vertices);
         }
-        // JarvisMarch jarvisMarch = new JarvisMarch();
-        // List<int> triangles;
-        // List<int> hull = jarvisMarch.ConvexHull3D(points, out triangles);
-        for (int i=0; i<points.Count; i+=10) {
+    }
+
+    void GenerateConvexHull()
+    {
+        ConvexHullCalculator calc = new ConvexHullCalculator();
+        List<Vector3> verts = new List<Vector3>();
+        List<int> tris = new List<int>();
+        List<Vector3> normals = new List<Vector3>();
+
+        calc.GenerateHull(points, false, ref verts, ref tris, ref normals);
+
+        hullMesh = new Mesh();
+        hullMesh.SetVertices(verts);
+        hullMesh.SetTriangles(tris, 0);
+        hullMesh.SetNormals(normals);
+    }
+
+    void Demo()
+    {
+        // Show points
+        for (int i=0; i<points.Count; i+=100) {
             GameObject point = Instantiate(pointModel, transform);
             point.transform.position = points[i];
         }
+
+        // Show hull
+        GetComponent<MeshFilter>().sharedMesh = hullMesh;
+        GetComponent<MeshRenderer>().material = hullMaterial;
+
+        // Demo ICP
+        FitModel();
     }
 
     void FitModel() {
-        // Decimate for development
-        List<Vector3> _points = new List<Vector3>();
-        for (int i=0; i<points.Count; i+=10) _points.Add(points[i]);
-        points = _points;
-
-        List<Vector3> moved = new List<Vector3>(points);
+        List<Vector3> moved = new List<Vector3>(hullMesh.vertices);
         for (int i=0; i<moved.Count; i++) {
             Quaternion rot = new Quaternion();
             rot.eulerAngles = new Vector3(20, 80, 0);
-            moved[i] = rot * new Vector3(moved[i].x + 0.1f, moved[i].y + 1f, moved[i].z + 3f);
+            moved[i] = rot * new Vector3(moved[i].x + 0.21f, moved[i].y + 1f, moved[i].z + 3f);
         }
         GameObject parent = new GameObject();
-        for (int i=0; i<points.Count; i++) {
+        for (int i=0; i<hullMesh.vertices.Count(); i++) {
             GameObject point = Instantiate(fitModel, parent.transform);
             point.transform.position = moved[i];
         }
         IterativeClosestPoint icp = new IterativeClosestPoint();
-        Matrix4x4 transformation = icp.ICP(moved, points, 50, 1e-5f, 1.0f, true);
+        Matrix4x4 transformation = icp.ICP(moved,
+                                           new List<Vector3>(hullMesh.vertices),
+                                           10,
+                                           1e-5f,
+                                           1.0f,
+                                           true);
         MatrixHelpers.SetTransformFromMatrix(parent.transform, ref transformation);
     }
 }
